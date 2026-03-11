@@ -57,28 +57,92 @@ end thunderbird_fsm_tb;
 architecture test_bench of thunderbird_fsm_tb is 
 	
 	component thunderbird_fsm is 
---	  port(
+	  port(
+        i_clk           : in std_logic;
+        i_reset         : in std_logic;
+        i_left          : in std_logic;
+        i_right         : in std_logic;
+        o_lights_L      : out std_logic_vector(2 downto 0);
+        o_lights_R      : out std_logic_vector(2 downto 0)
 		
---	  );
+	  );
 	end component thunderbird_fsm;
 
 	-- test I/O signals
+	-- Inputs
+	signal w_left  : std_logic := '0';
+	signal w_right : std_logic := '0';
+	signal w_reset : std_logic := '0';
+	signal w_clk   : std_logic := '0';
+	
+	-- Outputs
+	signal w_lights : std_logic_vector(5 downto 0) := "000000"; -- 6 output lights (L2-0,R0-2)
 	
 	-- constants
-	
+	constant k_clk_period : time := 10 ns;
 	
 begin
 	-- PORT MAPS ----------------------------------------
-	
+	uut: thunderbird_fsm port map (
+	       i_left => w_left,
+	       i_right => w_right,
+	       i_reset => w_reset,
+	       i_clk => w_clk,
+	       o_lights_L => w_lights(5 downto 3),
+	       o_lights_R => w_lights(2 downto 0)
+	     );
 	-----------------------------------------------------
 	
 	-- PROCESSES ----------------------------------------	
     -- Clock process ------------------------------------
-    
+    clk_proc : process
+    begin
+        w_clk <= '0';
+        wait for k_clk_period/2;
+        w_clk <= '1';
+        wait for k_clk_period/2;
+    end process;
 	-----------------------------------------------------
 	
 	-- Test Plan Process --------------------------------
-	
+	test_plan_proc: process
+	begin
+	   -- check reset
+	   w_reset <= '1';
+	   wait for k_clk_period*1;
+	       assert w_lights = "000000" report "bad reset" severity failure;
+	   
+	   w_reset <= '0';
+	   wait for k_clk_period*1;
+	   
+	   -- right blinker
+	   w_right <= '1'; wait for k_clk_period;
+	       assert w_lights = "000001" report "Error on R1" severity failure;
+	   w_right <='0'; wait for k_clk_period; -- assert R2 and R3 not dependent on w_right
+	       assert w_lights = "000011" report "Error on R2" severity failure;
+	   wait for k_clk_period;
+	       assert w_lights = "000111" report "Error on R3" severity failure;
+	   wait for k_clk_period;
+	       assert w_lights = "000000" report "Error on return to 0 (right)" severity failure;
+	   
+	   -- left blinker
+	   w_left <= '1'; wait for k_clk_period;
+	       assert w_lights = "001000" report "Error on L1" severity failure;
+	   w_left <= '0'; wait for k_clk_period; -- assert L2 and L3 not dependent on w_left
+	       assert w_lights = "011000" report "Error on L2" severity failure;
+	   wait for k_clk_period;
+	       assert w_lights = "111000" report "Error on L3" severity failure;
+	   wait for k_clk_period;
+	       assert w_lights = "000000" report "Error on return to 0 (left)" severity failure;
+	       
+	   -- OFF to ON
+	   w_left <= '1'; w_right <= '1'; wait for k_clk_period;
+	       assert w_lights = "111111" report "Error on ON" severity failure;
+	   wait for k_clk_period;
+	       assert w_lights = "000000" report "Error on return to 0 (ON)" severity failure;
+	       
+	   wait;
+    end process;
 	-----------------------------------------------------	
 	
 end test_bench;
